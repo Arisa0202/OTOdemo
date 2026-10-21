@@ -2,6 +2,9 @@
 const canvas = document.getElementById("artCanvas");
 const ctx = canvas.getContext("2d");
 const status = document.getElementById("status");
+const startButton = document.querySelector(".btn1");
+
+let isStarted = false;
 
 // 同時に触れている指を管理する
 // pointerId が指ごとの識別番号になる
@@ -95,8 +98,28 @@ function drawRipple(x, y, color) {
   ctx.stroke();
 }
 
+// 操作開始
+function startInteraction() {
+  if (isStarted) return;
+
+  isStarted = true;
+  status.textContent = "画面に触れて始めよう";
+  startButton.textContent = "操作中";
+  startButton.disabled = true;
+  startButton.style.opacity = "0.7";
+}
+
+startButton.addEventListener("click", () => {
+  startInteraction();
+});
+
 // 指が触れたとき
 canvas.addEventListener("pointerdown", (event) => {
+  if (!isStarted) {
+    status.textContent = "開始ボタンを押してから操作してください";
+    return;
+  }
+
   event.preventDefault();
 
   // マウスの右クリックなどは無視する
@@ -163,6 +186,17 @@ function endTouch(event) {
 
 canvas.addEventListener("pointerup", endTouch);
 canvas.addEventListener("pointercancel", endTouch);
+
+//スタートボタン
+document.getElementById("tartButton")
+  .addEventListener("click", () => {
+    isStarted = true;
+    startInteraction();
+
+  });
+
+
+
 
 // リセットボタン
 document.getElementById("clearButton")
