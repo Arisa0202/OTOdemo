@@ -9,6 +9,7 @@ const canvas = document.getElementById("artCanvas");
 const status = document.getElementById("status");
 const startButton = document.getElementById("startButton");
 const clearButton = document.getElementById("clearButton");
+const correctButton = document.getElementById("correctButton");
 
 const ctx = canvas?.getContext("2d");
 
@@ -58,10 +59,11 @@ if (!fn) {
 
 function resizeCanvas() {
     fn.resizeCanvas(canvas, ctx);
+    renderStrokes(strokes);
 }
 
-resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
 // ========================================
 // 4. 開始ボタン
@@ -161,9 +163,64 @@ function endTouch(event) {
 
 canvas.addEventListener("pointerup", endTouch);
 canvas.addEventListener("pointercancel", endTouch);
+// ========================================
+// 8. pythonサーバに補正依頼
+// ========================================
+correctButton.addEventListener("click", async () => {
+    if (strokes.length === 0) {
+        status.textContent = "先にキャンバスに描いてください";
+        return;
+    }
+
+    // 指で描いている途中の線があれば補正前に終了扱いにする
+    activeTouches.clear();
+
+    // 元の作品を保存しておく
+    originalStrokes = JSON.parse(JSON.stringify(strokes));
+
+    correctButton.disabled = true;
+    status.textContent = "形状を解析・補正しています...";
+
+    try {
+        const response = await fetch("/api/refine", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                width: canvas.clientWidth,
+                height: canvas.clientHeight,
+                strokes
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`サーバーエラー: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        strokes = result.strokes;
+        renderStrokes(strokes);
+
+        status.textContent =
+            `補正完了：${result.message || "形状を整えました"}`;
+    } catch (error) {
+        console.error(error);
+        status.textContent =
+            "補正できませんでした。Pythonサーバーを確認してください";
+    } finally {
+        correctButton.disabled = false;
+    }
+});
+
+
+
+
+
+
+
 
 // ========================================
-// 8. リセットボタン
+// 9. リセットボタン
 // ========================================
 
 clearButton.addEventListener("click", () => {
