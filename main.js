@@ -77,8 +77,14 @@ let isStarted = false;
 let strokes = [];
 let originalStrokes = [];
 
+let shakeOffsetX = 0;
+let shakeOffsetY = 0;
+let previousMotion = null;
+
 function renderStrokes(list = strokes) {
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    ctx.save();
+    ctx.translate(shakeOffsetX, shakeOffsetY);
 
     for (const stroke of list) {
         const points = stroke.points;
@@ -87,17 +93,62 @@ function renderStrokes(list = strokes) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
 
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
+        if (points.length === 1) {
+            ctx.arc(points[0].x, points[0].y, (stroke.width || 3) / 2, 0, Math.PI * 2);
+        } else {
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            if (stroke.closed) ctx.closePath();
         }
 
-        if (stroke.closed) ctx.closePath();
-
         ctx.strokeStyle = stroke.color || "#52e5ff";
+        ctx.fillStyle = stroke.color || "#52e5ff";
         ctx.lineWidth = stroke.width || 3;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.stroke();
+        if (points.length === 1) ctx.fill();
+        else ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+function handleDeviceMotion(event) {
+    const acceleration = event.accelerationIncludingGravity;
+    if (!acceleration || acceleration.x == null || acceleration.y == null) return;
+
+    if (previousMotion) {
+        const dx = acceleration.x - previousMotion.x;
+        const dy = acceleration.y - previousMotion.y;
+        shakeOffsetX = Math.max(-18, Math.min(18, dx * 2.5));
+        shakeOffsetY = Math.max(-18, Math.min(18, dy * 2.5));
+    }
+
+    previousMotion = { x: acceleration.x, y: acceleration.y };
+}
+
+function animateShake() {
+    shakeOffsetX *= 0.82;
+    shakeOffsetY *= 0.82;
+    renderStrokes();
+    if (isStarted) requestAnimationFrame(animateShake);
+}
+
+async function enableMotionSensor() {
+    if (!("DeviceMotionEvent" in window)) return false;
+
+    try {
+        if (typeof DeviceMotionEvent.requestPermission === "function") {
+            const permission = await DeviceMotionEvent.requestPermission();
+            if (permission !== "granted") return false;
+        }
+
+        window.addEventListener("devicemotion", handleDeviceMotion);
+        return true;
+    } catch (error) {
+        console.warn("端末の動きを取得できませんでした:", error);
+        return false;
     }
 }
 
@@ -124,6 +175,7 @@ if (!fn) {
 
 function resizeCanvas() {
     fn.resizeCanvas(canvas, ctx);
+    renderStrokes();
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -133,14 +185,18 @@ resizeCanvas();
 // 4. 開始ボタン
 // ========================================
 
-function startInteraction() {
+async function startInteraction() {
     if (isStarted) return;
 
+    const motionEnabled = await enableMotionSensor();
     isStarted = true;
-    status.textContent = "画面に触れて始めよう";
+    status.textContent = motionEnabled
+        ? "画面に触れて描こう。端末を振ると線が揺れます"
+        : "画面に触れて始めよう（振る操作は利用できません）";
 
     startButton.textContent = "操作中";
     startButton.disabled = true;
+    requestAnimationFrame(animateShake);
 
     console.log("OTOIRO：操作を開始しました");
 }
@@ -313,3 +369,4 @@ clearButton.addEventListener("click", () => {
 });
 
 console.log("OTOIRO：JavaScriptの読み込み完了");
+
