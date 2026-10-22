@@ -11,7 +11,9 @@ from fastapi.staticfiles import StaticFiles
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="OTOIRO shape refinement")
-
+@app.get("/api/health")
+async def health():
+    return {"ok": True}
 
 def smooth_points(points, radius=2):
     """近傍の座標を平均して線を滑らかにする。"""

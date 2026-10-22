@@ -74,6 +74,32 @@ if (missingElements.length > 0) {
 // ========================================
 
 let isStarted = false;
+let strokes = [];
+let originalStrokes = [];
+
+function renderStrokes(list = strokes) {
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+
+    for (const stroke of list) {
+        const points = stroke.points;
+        if (!points || points.length === 0) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+
+        for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+        }
+
+        if (stroke.closed) ctx.closePath();
+
+        ctx.strokeStyle = stroke.color || "#52e5ff";
+        ctx.lineWidth = stroke.width || 3;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+    }
+}
 
 // pointerIdごとに、各指の座標と色を記録する
 const activeTouches = new Map();
@@ -142,10 +168,19 @@ canvas.addEventListener("pointerdown", (event) => {
     const pos = fn.getPosition(event, canvas);
     const color = colors[activeTouches.size % colors.length];
 
+    const stroke = {
+        points: [{ x: pos.x, y: pos.y }],
+        color,
+        width: 3,
+        closed: false
+    };
+    strokes.push(stroke);
+
     activeTouches.set(event.pointerId, {
         x: pos.x,
         y: pos.y,
-        color: color
+        color: color,
+        stroke
     });
 
     // キャンバスの外へ指が動いても追跡する
@@ -165,7 +200,7 @@ canvas.addEventListener("pointerdown", (event) => {
 canvas.addEventListener("pointermove", (event) => {
     const touch = activeTouches.get(event.pointerId);
 
-    // 追跡していない指なら何もしない
+
     if (!touch) return;
 
     event.preventDefault();
@@ -180,6 +215,9 @@ canvas.addEventListener("pointermove", (event) => {
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.stroke();
+
+    // 描いた座標を補正用に保存
+    touch.stroke.points.push({ x: pos.x, y: pos.y });
 
     // 次の描画に備えて座標を更新
     touch.x = pos.x;
@@ -257,11 +295,6 @@ correctButton.addEventListener("click", async () => {
 
 
 
-
-
-
-
-
 // ========================================
 // 9. リセットボタン
 // ========================================
@@ -273,6 +306,10 @@ clearButton.addEventListener("click", () => {
 
     status.textContent = "画面をリセットしました";
     console.log("OTOIRO：画面をリセットしました");
+
+    strokes = [];
+    originalStrokes = [];
+    activeTouches.clear();
 });
 
 console.log("OTOIRO：JavaScriptの読み込み完了");
