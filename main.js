@@ -12,6 +12,45 @@ const clearButton = document.getElementById("clearButton");
 const correctButton = document.getElementById("correctButton");
 
 const ctx = canvas?.getContext("2d");
+//pythonサーバーの状態を取得
+let serverAvailable = false;
+
+correctButton.disabled = true;
+correctButton.textContent = "補正サーバー未接続";
+
+async function checkPythonServer() {
+    // index.htmlを直接開いた場合は描画専用モード
+    if (location.protocol === "file:") {
+        serverAvailable = false;
+        correctButton.disabled = true;
+        correctButton.textContent = "補正にはサーバーが必要";
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/health", {
+            signal: AbortSignal.timeout(2000)
+        });
+
+        if (!response.ok) {
+            throw new Error("サーバー応答エラー");
+        }
+
+        const data = await response.json();
+        serverAvailable = data.ok === true;
+    } catch {
+        serverAvailable = false;
+    }
+
+    correctButton.disabled = !serverAvailable;
+    correctButton.textContent = serverAvailable
+        ? "形状を補正"
+        : "補正サーバー未接続";
+}
+
+// 起動時に確認し、その後も定期的に確認
+checkPythonServer();
+setInterval(checkPythonServer, 5000);
 
 // 必須要素が取得できなければ、ここで原因を表示する
 const missingElements = [];
@@ -59,7 +98,6 @@ if (!fn) {
 
 function resizeCanvas() {
     fn.resizeCanvas(canvas, ctx);
-    renderStrokes(strokes);
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -166,7 +204,12 @@ canvas.addEventListener("pointercancel", endTouch);
 // ========================================
 // 8. pythonサーバに補正依頼
 // ========================================
+
 correctButton.addEventListener("click", async () => {
+    if (!serverAvailable) {
+        status.textContent = "Pythonサーバーを起動してください";
+        return;
+    }
     if (strokes.length === 0) {
         status.textContent = "先にキャンバスに描いてください";
         return;
